@@ -7,6 +7,9 @@ using Microsoft.SemanticKernel.Connectors.MongoDB;
 using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.Extensions.Configuration;
 using System.Linq;
+using MongoDB.Driver;
+using MongoDB.Bson;
+using SK_RAG_Demo.Models;
 
 namespace SK_RAG_Demo;
 
@@ -37,12 +40,13 @@ public static partial class Program
         FetchUserSecrets();
 
 
+
         var builder = Kernel.CreateBuilder();
 
         builder.AddAzureOpenAIChatCompletion(
             AzureOpenAIChatCompletionDeploymentName,
             AzureOpenAIEndpoint,
-            AzureOpenAIAPIKey,            
+            AzureOpenAIAPIKey,
             TextEmbeddingModelName);
 
         builder.AddAzureOpenAITextEmbeddingGeneration(
@@ -57,7 +61,7 @@ public static partial class Program
             AzureOpenAIEndpoint,
             AzureOpenAIAPIKey);
 
-        
+
         kernel = builder.Build();
 
         memoryBuilder = new MemoryBuilder();
@@ -69,55 +73,25 @@ public static partial class Program
             TextEmbeddingModelName);
 
         var mongoDBMemoryStore = new MongoDBMemoryStore(MongoDBAtasConnectionString, DatabaseName, SearchIndexName);
-
-        // Swapping this line with mongoDBMemoryStore causes issues.
-        // It can save documents to the collection just fine but line 114 doesn't find any results.
-        memoryBuilder.WithMemoryStore(new VolatileMemoryStore());
+        
+        memoryBuilder.WithMemoryStore(mongoDBMemoryStore);
         var memory = memoryBuilder.Build();
 
         kernel.ImportPluginFromObject(new TextMemoryPlugin(memory));
+        //await FetchAndSaveMovieDocuments(memory, 1500);
 
-        #endregion       
+        #endregion
 
-        var githubFiles = new Dictionary<string, string>()
-        {
-            ["https://github.com/microsoft/semantic-kernel/blob/main/README.md"]
-        = "README: Installation, getting started, and how to contribute",
-            ["https://github.com/microsoft/semantic-kernel/blob/main/dotnet/notebooks/02-running-prompts-from-file.ipynb"]
-        = "Jupyter notebook describing how to pass prompts from a file to a semantic plugin or function",
-            ["https://github.com/microsoft/semantic-kernel/blob/main/dotnet/notebooks/00-getting-started.ipynb"]
-        = "Jupyter notebook describing how to get started with the Semantic Kernel",
-            ["https://github.com/microsoft/semantic-kernel/tree/main/samples/plugins/ChatPlugin/ChatGPT"]
-        = "Sample demonstrating how to create a chat plugin interfacing with ChatGPT",
-            ["https://github.com/microsoft/semantic-kernel/blob/main/dotnet/src/Plugins/Plugins.Memory/VolatileMemoryStore.cs"]
-        = "C# class that defines a volatile embedding store",
-        };       
-
-        Console.WriteLine("Adding some GitHub file URLs and their descriptions to Chroma Semantic Memory.");
-        var i = 0;
-        foreach (var entry in githubFiles)
-        {
-            await memory.SaveReferenceAsync(
-                collection: CollectionName,
-                description: entry.Value,
-                text: entry.Value,
-                externalId: entry.Key,
-                externalSourceName: "GitHub"
-            );
-            Console.WriteLine($"  URL {++i} saved");
-        }
-
-        string ask = "I love Jupyter notebooks, how should I get started?";
-        Console.WriteLine("===========================\n" +
-            "Query: " + ask + "\n");
+        Console.WriteLine("What sort of movie would you like to watch this evening?");
+        var ask = Console.ReadLine();
+       
 
         var memories = memory.SearchAsync(CollectionName, ask, limit: 5, minRelevanceScore: 0.6);
-               
-        i = 0;
-        await foreach(var mem in memories)
+
+        var i = 0;
+        await foreach (var mem in memories)
         {
             Console.WriteLine($"Result {++i}:");
-            Console.WriteLine("  URL:     : " + mem.Metadata.Id);
             Console.WriteLine("  Title    : " + mem.Metadata.Description);
             Console.WriteLine("  Relevance: " + mem.Relevance);
             Console.WriteLine();
@@ -145,4 +119,48 @@ public static partial class Program
         CollectionName = config.GetValue<string>("CollectionName");
     }
 
+    private static async Task FetchAndSaveMovieDocuments(ISemanticTextMemory memory, int limitSize)
+    {
+        /*
+         * 1. Create MongoClient with connection details
+         * 2. Find any documents. Limit to 100
+         * 3. For each document, save in memory using save reference
+         */
+        MongoClient mongoClient = new MongoClient(MongoDBAtasConnectionString);
+        var movieDB = mongoClient.GetDatabase("sample_mflix");
+        var movieCollection = movieDB.GetCollection<Movie>("movies");
+        List<Movie> movieDocuments;
+
+        Console.WriteLine("Fetching documents from MongoDB...");
+
+        movieDocuments = movieCollection.Find(m => true).Limit(limitSize).ToList();
+
+        movieDocuments.ForEach(movie =>
+        {
+            if (movie.Plot == null)
+            {
+                movie.Plot = "UNKNOWN";
+            }
+        });
+
+        foreach (var movie in movieDocuments)
+        {
+            try
+            {
+                await memory.SaveReferenceAsync(
+                collection: CollectionName,
+                description: movie.Plot,
+                text: movie.Plot,
+                externalId: movie.Title,
+                externalSourceName: "Sample_Mflix_Movies",
+                additionalMetadata: movie.Year.ToString());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+
+            }
+        }
+    }
 }
+
