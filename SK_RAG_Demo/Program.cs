@@ -93,6 +93,40 @@ public static partial class Program
         Console.WriteLine("");
 
         Console.Write("> ");
+
+        var executionSettings = new OpenAIPromptExecutionSettings
+        {
+            MaxTokens = 2000,
+            Temperature = 0.7,
+            TopP = 0.5
+        };
+
+        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
+
+        var history = "";
+        var arguments = new KernelArguments()
+        {
+            ["history"] = history
+        };      
+
+        Console.WriteLine("Ask me about movies");
+
+        var executionSettings = new OpenAIPromptExecutionSettings
+        {
+            MaxTokens = 2000,
+            Temperature = 0.7,
+            TopP = 0.5
+        };
+
+        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
+
+        var history = "";
+        var arguments = new KernelArguments()
+        {
+            ["history"] = history
+        };      
+
+        Console.WriteLine("Ask me about movies");
         var userInput = Console.ReadLine();
         Console.WriteLine();
 
