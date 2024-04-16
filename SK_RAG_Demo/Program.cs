@@ -85,57 +85,16 @@ public static partial class Program
 
         #endregion
 
-        const string skPrompt = @"
-ChatBot can have a conversation with you about movies.
-It can give explicit answers or say 'I don't know' if it does not have an answer.
+   
 
-{{$history}}
-User: {{$userInput}}
-ChatBot:";
-
-        var executionSettings = new OpenAIPromptExecutionSettings
-        {
-            MaxTokens = 2000,
-            Temperature = 0.7,
-            TopP = 0.5
-        };
-
-        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
-
-        var history = "";
-        var arguments = new KernelArguments()
-        {
-            ["history"] = history
-        };      
-
-        Console.WriteLine("Ask me about movies");
+        Console.WriteLine("Tell me what sort of film you want to watch..");
         var userInput = Console.ReadLine();
 
-        Func<string, Task> Chat = async (string input) => {
-            // Save new message in the arguments
-            arguments["userInput"] = input;
+        var memories = memory.SearchAsync(CollectionName, userInput, limit: 3, minRelevanceScore: 0.6);
 
-            // Process the user message and get an answer
-            var answer = await chatFunction.InvokeAsync(kernel, arguments);
-
-            // Append the new interaction to the chat history
-            var result = $"\nUser: {input}\nAI: {answer}\n";
-            history += result;
-
-            arguments["history"] = history;
-
-            // Show the response
-            Console.WriteLine(result);
-        };
-
-        var botAnswer = await chatFunction.InvokeAsync(kernel, arguments);
-        history += $"\nUser: {userInput}\nAI: {botAnswer}\n";
-        arguments["history"] = history;
-
-        Console.WriteLine(history);        
        
 
-        
+
         var i = 0;
         await foreach (var mem in memories)
         {
