@@ -11,6 +11,7 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using SK_RAG_Demo.Models;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Spectre.Console;
 
 namespace SK_RAG_Demo;
 
@@ -85,68 +86,40 @@ public static partial class Program
 
         #endregion
 
-        const string skPrompt = @"
-ChatBot can have a conversation with you about movies.
-It can give explicit answers or say 'I don't know' if it does not have an answer.
+        AnsiConsole.MarkupLine("[bold lime]Welcome to the Movie Recommendation System![/]");
+        AnsiConsole.MarkupLine("[bold lime]============================================[/]");
+        Console.WriteLine("");        
+        AnsiConsole.MarkupLine("[bold lime] Tell me what sort of film you want to watch..[/]");
+        Console.WriteLine("");
 
-{{$history}}
-User: {{$userInput}}
-ChatBot:";
-
-        var executionSettings = new OpenAIPromptExecutionSettings
-        {
-            MaxTokens = 2000,
-            Temperature = 0.7,
-            TopP = 0.5
-        };
-
-        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
-
-        var history = "";
-        var arguments = new KernelArguments()
-        {
-            ["history"] = history
-        };      
-
-        Console.WriteLine("Ask me about movies");
+        Console.Write("> ");
         var userInput = Console.ReadLine();
+        Console.WriteLine();
 
-        Func<string, Task> Chat = async (string input) => {
-            // Save new message in the arguments
-            arguments["userInput"] = input;
+        var memories = memory.SearchAsync(CollectionName, userInput, limit: 3, minRelevanceScore: 0.6);
 
-            // Process the user message and get an answer
-            var answer = await chatFunction.InvokeAsync(kernel, arguments);
+        var table = new Table();
+        table.Border = TableBorder.HeavyHead;
+        table.ShowRowSeparators = true;
 
-            // Append the new interaction to the chat history
-            var result = $"\nUser: {input}\nAI: {answer}\n";
-            history += result;
+        table.AddColumn("[bold red]Title[/]").Centered();
+        table.AddColumn("[bold green]Plot[/]").Centered();
+        table.AddColumn("[bold blue]Year[/]").Centered();
+        table.AddColumn("[bold yellow]Relevance (0 - 1)[/]").Centered();      
 
-            arguments["history"] = history;
 
-            // Show the response
-            Console.WriteLine(result);
-        };
-
-        var botAnswer = await chatFunction.InvokeAsync(kernel, arguments);
-        history += $"\nUser: {userInput}\nAI: {botAnswer}\n";
-        arguments["history"] = history;
-
-        Console.WriteLine(history);        
-       
-
-        
         var i = 0;
         await foreach (var mem in memories)
         {
-            Console.WriteLine($"Result {++i}:");
-            Console.WriteLine("  Title    : " + mem.Metadata.Id);
-            Console.WriteLine("  Plot    : " + mem.Metadata.Description);
-            Console.WriteLine("  Year     : " + mem.Metadata.AdditionalMetadata);
-            Console.WriteLine("  Relevance: " + mem.Relevance);
-            Console.WriteLine();
+            // Add content row 
+            table.AddRow(new Text[]{
+    new Text(mem.Metadata.Id).Centered(),
+    new Text(mem.Metadata.Description).Centered(),
+    new Text(mem.Metadata.AdditionalMetadata).Centered(),
+    new Text(mem.Relevance.ToString()).Centered()});          
         }
 
+        AnsiConsole.Write(table);
         Console.WriteLine("Press any key to continue..");
         Console.ReadLine();
     }
