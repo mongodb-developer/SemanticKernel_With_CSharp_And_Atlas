@@ -10,6 +10,7 @@ using System.Linq;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using SK_RAG_Demo.Models;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace SK_RAG_Demo;
 
@@ -63,7 +64,7 @@ public static partial class Program
 
 
         kernel = builder.Build();
-
+        
         memoryBuilder = new MemoryBuilder();
 
         memoryBuilder.WithAzureOpenAITextEmbeddingGeneration(
@@ -72,8 +73,10 @@ public static partial class Program
             AzureOpenAIAPIKey,
             TextEmbeddingModelName);
 
+       
+
         var mongoDBMemoryStore = new MongoDBMemoryStore(MongoDBAtasConnectionString, DatabaseName, SearchIndexName);
-        
+        memoryBuilder.WithMemoryStore(mongoDBMemoryStore);
         memoryBuilder.WithMemoryStore(mongoDBMemoryStore);
         var memory = memoryBuilder.Build();
 
@@ -82,17 +85,64 @@ public static partial class Program
 
         #endregion
 
-        Console.WriteLine("What sort of movie would you like to watch this evening?");
-        var ask = Console.ReadLine();
+        const string skPrompt = @"
+ChatBot can have a conversation with you about movies.
+It can give explicit answers or say 'I don't know' if it does not have an answer.
+
+{{$history}}
+User: {{$userInput}}
+ChatBot:";
+
+        var executionSettings = new OpenAIPromptExecutionSettings
+        {
+            MaxTokens = 2000,
+            Temperature = 0.7,
+            TopP = 0.5
+        };
+
+        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
+
+        var history = "";
+        var arguments = new KernelArguments()
+        {
+            ["history"] = history
+        };      
+
+        Console.WriteLine("Ask me about movies");
+        var userInput = Console.ReadLine();
+
+        Func<string, Task> Chat = async (string input) => {
+            // Save new message in the arguments
+            arguments["userInput"] = input;
+
+            // Process the user message and get an answer
+            var answer = await chatFunction.InvokeAsync(kernel, arguments);
+
+            // Append the new interaction to the chat history
+            var result = $"\nUser: {input}\nAI: {answer}\n";
+            history += result;
+
+            arguments["history"] = history;
+
+            // Show the response
+            Console.WriteLine(result);
+        };
+
+        var botAnswer = await chatFunction.InvokeAsync(kernel, arguments);
+        history += $"\nUser: {userInput}\nAI: {botAnswer}\n";
+        arguments["history"] = history;
+
+        Console.WriteLine(history);        
        
 
-        var memories = memory.SearchAsync(CollectionName, ask, limit: 5, minRelevanceScore: 0.6);
-
+        
         var i = 0;
         await foreach (var mem in memories)
         {
             Console.WriteLine($"Result {++i}:");
-            Console.WriteLine("  Title    : " + mem.Metadata.Description);
+            Console.WriteLine("  Title    : " + mem.Metadata.Id);
+            Console.WriteLine("  Plot    : " + mem.Metadata.Description);
+            Console.WriteLine("  Year     : " + mem.Metadata.AdditionalMetadata);
             Console.WriteLine("  Relevance: " + mem.Relevance);
             Console.WriteLine();
         }
