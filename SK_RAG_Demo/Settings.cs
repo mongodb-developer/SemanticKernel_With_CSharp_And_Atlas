@@ -10,7 +10,7 @@ public class Settings
     public string AzureOpenAITextEmbeddingDeploymentName { get; set; }
 
     public string AzureOpenAIChatCompletionDeploymentName { get; set; }
-    public string MongoDBAtasConnectionstring { get; set; }
+    public string MongoDBAtlasConnectionstring { get; set; }
 public string SearchIndexName { get; set; }
 
     public string DatabaseName { get; set; }
