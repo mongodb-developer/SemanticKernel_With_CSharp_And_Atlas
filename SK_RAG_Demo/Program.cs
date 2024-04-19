@@ -1,20 +1,16 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
-using Kernel = Microsoft.SemanticKernel.Kernel;
+using Microsoft.SemanticKernel.Connectors.MongoDB;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Memory;
-using Microsoft.SemanticKernel.Connectors.MongoDB;
-using Microsoft.SemanticKernel.Plugins.Memory;
-using Microsoft.Extensions.Configuration;
-using System.Linq;
 using MongoDB.Driver;
-using MongoDB.Bson;
 using SK_RAG_Demo.Models;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Spectre.Console;
+using Kernel = Microsoft.SemanticKernel.Kernel;
 
 namespace SK_RAG_Demo;
 
+// Features are still experimental
 #pragma warning disable SKEXP0001, SKEXP0010, SKEXP0020, SKEXP0050
 public static partial class Program
 {
@@ -28,7 +24,7 @@ public static partial class Program
     static string AzureOpenAIEndpoint;
     static string AzureOpenAITextEmbeddingDeploymentName;
     static string AzureOpenAIChatCompletionDeploymentName;
-    static string MongoDBAtasConnectionString;
+    static string MongoDBAtlasConnectionString;
     static string SearchIndexName;
     static string DatabaseName;
     static string CollectionName;
@@ -40,31 +36,6 @@ public static partial class Program
         #region
 
         FetchUserSecrets();
-
-
-
-        var builder = Kernel.CreateBuilder();
-
-        builder.AddAzureOpenAIChatCompletion(
-            AzureOpenAIChatCompletionDeploymentName,
-            AzureOpenAIEndpoint,
-            AzureOpenAIAPIKey,
-            TextEmbeddingModelName);
-
-        builder.AddAzureOpenAITextEmbeddingGeneration(
-            AzureOpenAITextEmbeddingDeploymentName,
-            AzureOpenAIEndpoint,
-            AzureOpenAIAPIKey,
-            TextEmbeddingModelName
-            );
-
-        builder.AddAzureOpenAITextGeneration(
-            AzureOpenAITextEmbeddingDeploymentName,
-            AzureOpenAIEndpoint,
-            AzureOpenAIAPIKey);
-
-
-        kernel = builder.Build();
         
         memoryBuilder = new MemoryBuilder();
 
@@ -73,89 +44,70 @@ public static partial class Program
             AzureOpenAIEndpoint,
             AzureOpenAIAPIKey,
             TextEmbeddingModelName);
+              
 
-       
-
-        var mongoDBMemoryStore = new MongoDBMemoryStore(MongoDBAtasConnectionString, DatabaseName, SearchIndexName);
-        memoryBuilder.WithMemoryStore(mongoDBMemoryStore);
-        memoryBuilder.WithMemoryStore(mongoDBMemoryStore);
+        var mongoDBMemoryStore = new MongoDBMemoryStore(MongoDBAtlasConnectionString, DatabaseName, SearchIndexName);
+        memoryBuilder.WithMemoryStore(mongoDBMemoryStore);       
         var memory = memoryBuilder.Build();
-
-        kernel.ImportPluginFromObject(new TextMemoryPlugin(memory));
+      
         //await FetchAndSaveMovieDocuments(memory, 1500);
 
         #endregion
 
+        var interactions = new List<string>();
+
         AnsiConsole.MarkupLine("[bold lime]Welcome to the Movie Recommendation System![/]");
+        AnsiConsole.MarkupLine("[bold white]Type 'x' and press Enter to exit.[/]");
         AnsiConsole.MarkupLine("[bold lime]============================================[/]");
         Console.WriteLine("");        
-        AnsiConsole.MarkupLine("[bold lime] Tell me what sort of film you want to watch..[/]");
-        Console.WriteLine("");
-
-        Console.Write("> ");
-
-        var executionSettings = new OpenAIPromptExecutionSettings
+        
+        
+        while(true)
         {
-            MaxTokens = 2000,
-            Temperature = 0.7,
-            TopP = 0.5
-        };
+            AnsiConsole.MarkupLine("[bold lime] Tell me what sort of film you want to watch..[/]");
+            Console.WriteLine("");
 
-        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
+            Console.Write("> ");
 
-        var history = "";
-        var arguments = new KernelArguments()
-        {
-            ["history"] = history
-        };      
+            var userInput = Console.ReadLine();
 
-        Console.WriteLine("Ask me about movies");
+            if(userInput.ToLower() == "x")
+            {
+                Console.WriteLine("Exiting application..");
+                break;
+            }
 
-        var executionSettings = new OpenAIPromptExecutionSettings
-        {
-            MaxTokens = 2000,
-            Temperature = 0.7,
-            TopP = 0.5
-        };
-
-        var chatFunction = kernel.CreateFunctionFromPrompt(skPrompt, executionSettings);
-
-        var history = "";
-        var arguments = new KernelArguments()
-        {
-            ["history"] = history
-        };      
-
-        Console.WriteLine("Ask me about movies");
-        var userInput = Console.ReadLine();
-        Console.WriteLine();
-
-        var memories = memory.SearchAsync(CollectionName, userInput, limit: 3, minRelevanceScore: 0.6);
-
-        var table = new Table();
-        table.Border = TableBorder.HeavyHead;
-        table.ShowRowSeparators = true;
-
-        table.AddColumn("[bold red]Title[/]").Centered();
-        table.AddColumn("[bold green]Plot[/]").Centered();
-        table.AddColumn("[bold blue]Year[/]").Centered();
-        table.AddColumn("[bold yellow]Relevance (0 - 1)[/]").Centered();      
+            Console.WriteLine();
 
 
-        var i = 0;
-        await foreach (var mem in memories)
-        {
-            // Add content row 
-            table.AddRow(new Text[]{
+
+            var memories = memory.SearchAsync(CollectionName, userInput, limit: 3, minRelevanceScore: 0.6);
+
+            var table = new Table();
+            table.Border = TableBorder.HeavyHead;
+            table.ShowRowSeparators = true;
+
+            table.AddColumn("[bold red]Title[/]").Centered();
+            table.AddColumn("[bold green]Plot[/]").Centered();
+            table.AddColumn("[bold blue]Year[/]").Centered();
+            table.AddColumn("[bold yellow]Relevance (0 - 1)[/]").Centered();
+
+
+            var i = 0;
+            await foreach (var mem in memories)
+            {
+                // Add content row 
+                table.AddRow(new Text[]{
     new Text(mem.Metadata.Id).Centered(),
     new Text(mem.Metadata.Description).Centered(),
     new Text(mem.Metadata.AdditionalMetadata).Centered(),
-    new Text(mem.Relevance.ToString()).Centered()});          
-        }
+    new Text(mem.Relevance.ToString()).Centered()});
+            }
 
-        AnsiConsole.Write(table);
-        Console.WriteLine("Press any key to continue..");
-        Console.ReadLine();
+            AnsiConsole.Write(table);           
+            
+        }
+       
     }
 
     private static void FetchUserSecrets()
@@ -170,7 +122,7 @@ public static partial class Program
         GPT35ModelName = config.GetValue<string>("GPT35ModelName");
         AzureOpenAITextEmbeddingDeploymentName = config.GetValue<string>("AzureOpenAITextEmbeddingDeploymentName");
         AzureOpenAIChatCompletionDeploymentName = config.GetValue<string>("AzureOpenAIChatCompletionDeploymentName");
-        MongoDBAtasConnectionString = config.GetValue<string>("MongoDBAtasConnectionString");
+        MongoDBAtlasConnectionString = config.GetValue<string>("MongoDBAtlasConnectionString");
         SearchIndexName = config.GetValue<string>("SearchIndexName");
         DatabaseName = config.GetValue<string>("DatabaseName");
         CollectionName = config.GetValue<string>("CollectionName");
@@ -180,10 +132,10 @@ public static partial class Program
     {
         /*
          * 1. Create MongoClient with connection details
-         * 2. Find any documents. Limit to 100
+         * 2. Find any documents. Limit to limitSize parameter
          * 3. For each document, save in memory using save reference
          */
-        MongoClient mongoClient = new MongoClient(MongoDBAtasConnectionString);
+        MongoClient mongoClient = new MongoClient(MongoDBAtlasConnectionString);
         var movieDB = mongoClient.GetDatabase("sample_mflix");
         var movieCollection = movieDB.GetCollection<Movie>("movies");
         List<Movie> movieDocuments;
