@@ -2,6 +2,8 @@
 
 This repo is a sample console application showing how to use Semantic Kernel, Azure OpenAI and MongoDB Atlas to create a simple movie querying bot.
 
+If you do not have access to Azure OpenAI, you can view the branch *using-openai* which is the same example but using OpenAI.
+
 ## Prerequisites
 
 You will need a few things to run this locally:
