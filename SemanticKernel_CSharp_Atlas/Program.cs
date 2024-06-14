@@ -18,12 +18,9 @@ public static partial class Program
     static IConfiguration config;
     static Kernel kernel;
 
-    static string AzureOpenAIAPIKey;
     static string TextEmbeddingModelName;
-    static string GPT35ModelName;
-    static string AzureOpenAIEndpoint;
-    static string AzureOpenAITextEmbeddingDeploymentName;
-    static string AzureOpenAIChatCompletionDeploymentName;
+    static string OpenAIAPIKey;
+  
     static string MongoDBAtlasConnectionString;
     static string SearchIndexName;
     static string DatabaseName;
@@ -39,11 +36,10 @@ public static partial class Program
         
         memoryBuilder = new MemoryBuilder();
 
-        memoryBuilder.WithAzureOpenAITextEmbeddingGeneration(
-            AzureOpenAITextEmbeddingDeploymentName,
-            AzureOpenAIEndpoint,
-            AzureOpenAIAPIKey,
-            TextEmbeddingModelName);
+        memoryBuilder.WithOpenAITextEmbeddingGeneration(
+            TextEmbeddingModelName,
+            OpenAIAPIKey
+            );
               
 
         var mongoDBMemoryStore = new MongoDBMemoryStore(MongoDBAtlasConnectionString, DatabaseName, SearchIndexName);
@@ -117,11 +113,7 @@ public static partial class Program
             .AddUserSecrets<Settings>()
             .Build();
         TextEmbeddingModelName = config.GetValue<string>("TextEmbeddingModelName");
-        AzureOpenAIEndpoint = config.GetValue<string>("AzureOpenAIEndpoint");
-        AzureOpenAIAPIKey = config.GetValue<string>("AzureOpenAIAPIKey");
-        GPT35ModelName = config.GetValue<string>("GPT35ModelName");
-        AzureOpenAITextEmbeddingDeploymentName = config.GetValue<string>("AzureOpenAITextEmbeddingDeploymentName");
-        AzureOpenAIChatCompletionDeploymentName = config.GetValue<string>("AzureOpenAIChatCompletionDeploymentName");
+        OpenAIAPIKey = config.GetValue<string>("OpenAIAPIKey");
         MongoDBAtlasConnectionString = config.GetValue<string>("MongoDBAtlasConnectionString");
         SearchIndexName = config.GetValue<string>("SearchIndexName");
         DatabaseName = config.GetValue<string>("DatabaseName");
