@@ -6,13 +6,10 @@ This repo is a sample console application showing how to use Semantic Kernel, Az
 
 You will need a few things to run this locally:
 
-1. Azure Open AI deployment for both GPT-3.5 and text-embeddings-ada-002.
-2. Azure Open AI API Key
-3. Azure Open AI Endpoint
-4. Azure Open AI Deploy name
-5. MongoDB Atlas Cluster with sample dataset loaded
-6. MongoDB Atlas Connection
-7. MongoDB Vector Search Index created.
+1. Open AI API Key
+2. MongoDB Atlas Cluster with sample dataset loaded
+3. MongoDB Atlas Connection
+4. MongoDB Vector Search Index created.
 
   *Note that this application relies on user secrets. A sample secrets.json file is available for guidance.*
 
